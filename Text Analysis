@@ -1,0 +1,301 @@
+#load necessary libraries
+install.packages("tm")  # Text Mining Package
+install.packages("stringr")  # String Manipulation
+install.packages("tm")  # Text Mining Package
+install.packages("wordcloud")  # Word Clouds
+install.packages("quanteda")  # Quantitative Analysis of Textual Data
+install.packages("tm")  # Text Mining Package
+install.packages("topicmodels")  # Topic Modeling
+install.packages("tidytext")  # Text Mining using 'dplyr' Verbs
+install.packages("dyplr")
+install.packages("textdata")
+install.packages("lattice")
+install.packages("nnet")
+
+#load the required libraraies 
+library(tm)
+library(stringr)
+library(wordcloud)
+library(quanteda)
+library(topicmodels)
+library(tidytext)
+library(dyplr)
+library(textdata)
+library(nnet)
+
+# Load the dplyr library
+library(dplyr)
+
+# Assuming 'complaints' is your dataset
+filtered_data <- complaints %>%
+  select(Company, Consumer.complaint.narrative) %>%
+  filter(Company %in% c('EQUIFAX, INC.', 'TRANSUNION INTERMEDIATE HOLDINGS, INC.'))
+
+# Print the first 6 rows as a preview
+head(filtered_data)
+
+
+
+
+# Assuming df is your data frame
+Company_data <- filtered_data %>%
+  filter(Company %in% c('EQUIFAX, INC.', 'TRANSUNION INTERMEDIATE HOLDINGS, INC.') & !is.na(Consumer.complaint.narrative) & Consumer.complaint.narrative != "") %>%
+  slice_head(n = 100)
+
+# Displaying the resulting data frame
+print(Company_data)
+
+
+
+
+
+
+
+# Assuming 'text_data' is your dataset column with text
+corpus <- Corpus(VectorSource(Company_data$Consumer.complaint.narrative))
+
+# Assuming 'corpus' is your existing corpus
+corpus <- tm_map(corpus, content_transformer(tolower))
+
+# Remove punctuation
+corpus <- tm_map(corpus, removePunctuation)
+
+# Remove numbers
+corpus <- tm_map(corpus, removeNumbers)
+
+# Remove stopwords
+corpus <- tm_map(corpus, removeWords, stopwords("english"))
+
+# Stemming
+corpus <- tm_map(corpus, stemDocument)
+
+
+# Filter out empty documents
+corpus <- corpus[sapply(corpus, function(x) length(unlist(strsplit(as.character(x), " "))) > 0)]
+
+
+dtm <- DocumentTermMatrix(corpus)
+
+word_freq <- colSums(as.matrix(dtm))
+word_freq_df <- data.frame(word = names(word_freq), freq = word_freq)
+word_freq_df <- word_freq_df[order(-word_freq_df$freq), ]
+
+
+wordcloud(words = word_freq_df$word, freq = word_freq_df$freq, min.freq = 1, scale=c(3,0.5))
+
+
+# Assuming 'num_topics' is the desired number of topics
+lda_model <- LDA(dtm, k = 5)
+
+# Find rows with all zero entries
+all_zero_rows <- rowSums(as.matrix(dtm)) == 0
+
+# Filter out rows with all zero entries
+filtered_dtm <- dtm[!all_zero_rows, ]
+
+# Now, you can create the LDA model with the filtered DTM
+lda_model <- LDA(filtered_dtm, k = 5)
+
+# Print the terms associated with each topic
+terms(lda_model, 10)  # Adjust the number (e.g., 10) based on the desired terms per topic
+
+# Assuming you have already fit the LDA model and have the document-topic matrix
+
+# Assuming you have already fit the LDA model and have the document-topic matrix
+
+# Visualize Topics
+library(topicmodels)
+library(wordcloud)
+
+# Extract the terms for each topic
+topic_terms <- terms(lda_model, 10)  # Adjust the number (e.g., 10) based on the desired terms per topic
+
+# Plot the most frequent terms for each topic
+for (i in 1:ncol(topic_terms)) {
+  if (sum(topic_terms[, i] > 0) > 0) {  # Check if the column is not empty
+    wordcloud(words = rownames(topic_terms), freq = topic_terms[, i], main = paste("Topic", i))
+  }
+}
+
+
+
+
+# Assign Topics to Documents
+doc_topic_matrix <- as.matrix(lda_model@gamma)
+assigned_topics <- apply(doc_topic_matrix, 1, which.max)
+
+# Assuming 'num_rows' is the number of rows in your dataset (replace it with the actual number)
+num_rows <- 100
+
+# Add assigned topics to the original dataset
+Company_data$Assigned_Topic <- rep(NA, num_rows)
+Company_data$Assigned_Topic[1:length(assigned_topics)] <- assigned_topics
+
+
+# Check the length of assigned_topics
+if (length(assigned_topics) == nrow(selected_data)) {
+  # Visualize Topic Distribution
+  library(ggplot2)
+  ggplot(Company_data, aes(x = factor(Assigned_Topic))) +
+    geom_bar(fill = "skyblue") +
+    labs(title = "Topic Distribution",
+         x = "Assigned Topic",
+         y = "Number of Documents")
+} else {
+  cat("Length of assigned_topics does not match the number of rows in selected_data.")
+}
+
+
+
+
+
+
+# Get the document-topic matrix
+doc_topic_matrix <- as.matrix(lda_model@gamma)
+
+# Assign the most probable topic for each document
+assigned_topics <- apply(doc_topic_matrix, 1, which.max)
+
+# Add the assigned topics to the original dataset
+selected_data$Assigned_Topic <- assigned_topics
+
+
+
+
+
+# Assuming 'text_data' is the dataset column with text
+sentiment_scores <- Company_data %>%
+  unnest_tokens(word, Consumer.complaint.narrative) %>%
+  inner_join(get_sentiments("afinn"), by = "word") %>%
+  summarise(sentiment_score = sum(value))
+
+
+# Assuming 'text_data' is the dataset with 'Consumer.complaint.narrative' column
+sentiment_scores <- Company_data %>%
+  unnest_tokens(word, Consumer.complaint.narrative) %>%
+  inner_join(get_sentiments("afinn"), by = "word")
+
+# Assuming 'lda_model' is the LDA model
+# Print the terms associated with each topic
+terms(lda_model,20)  # Adjust the number (e.g., 10) based on the desired terms per topic
+
+
+# Assuming 'sentiment_scores' is the result from the sentiment analysis code
+library(ggplot2)
+
+# Create a bar plot for sentiment scores
+ggplot(sentiment_scores, aes(x = value)) +
+  geom_bar(fill = "skyblue", binwidth = 1) +
+  labs(title = "Distribution of Sentiment Scores",
+       x = "Sentiment Score",
+       y = "Frequency")
+
+# Assuming 'sentiment_scores' is the result from the sentiment analysis code
+# Assuming you have a column named 'Company' indicating the company in 'sentiment_scores'
+
+library(ggplot2)
+
+# Filter data for Equifax and TransUnion
+company_sentiments <- sentiment_scores %>%
+  filter(Company %in% c('EQUIFAX, INC.', 'TRANSUNION INTERMEDIATE HOLDINGS, INC.'))
+
+# Assuming 'sentiment_scores' is the result from the sentiment analysis code
+# Assuming you have a column named 'Company' indicating the company in 'sentiment_scores'
+
+library(ggplot2)
+# Create a bar plot for sentiment scores by assigned topic and company
+ggplot(sentiment_scores, aes(x = factor(Assigned_Topic), y = value, fill = Company)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Sentiment Analysis by Assigned Topic and Company",
+       x = "Assigned Topic",
+       y = "Average Sentiment Score") +
+  scale_fill_manual(values = c("EQUIFAX, INC." = "blue", "TRANSUNION INTERMEDIATE HOLDINGS, INC." = "orange")) +  # Adjust colors as needed
+  theme_minimal()
+
+
+company_comparison <- sentiment_scores %>%
+  group_by(Company) %>%
+  summarise(avg_sentiment = mean(value))
+
+print(company_comparison)
+
+
+
+library(tidytext)
+
+# Assuming 'Customer Narrative' is the text column
+words_sentiment <- sentiment_scores %>%
+  #unnest_tokens(word,'Company_data$Consumer.complaint.narrative') %>%
+  inner_join(get_sentiments("afinn"), by = "word")
+
+top_positive_words <- words_sentiment %>%
+  filter(value.x > 0) %>%
+  count(word, sort = TRUE) %>%
+  head(10)
+
+top_negative_words <- words_sentiment %>%
+  filter(value.x < 0) %>%
+  count(word, sort = TRUE) %>%
+  head(10)
+
+print(top_positive_words)
+print(top_negative_words)
+
+
+
+# Assuming 'sentiment_scores' has columns 'Company' and 'sentiment_score'
+library(dplyr)
+
+# Explore average sentiment score by company
+company_comparison <- sentiment_scores %>%
+  group_by(Company) %>%
+  summarise(avg_sentiment = mean(value))
+
+print(company_comparison)
+
+
+company_of_interest <- sentiment_scores %>%
+  filter(Company %in% c('EQUIFAX, INC.', '	
+TRANSUNION INTERMEDIATE HOLDINGS, INC.'))
+
+print(company_of_interest)
+
+
+# Assuming 'sentiment_scores' has columns 'sentiment_score' and 'target_variable'
+library(caret)
+
+# Split data into training and testing sets
+set.seed(123)
+trainIndex <- createDataPartition(sentiment_scores$Company, p = 0.8, 
+                                  list = FALSE, 
+                                  times = 1)
+train_data <- sentiment_scores[trainIndex, ]
+test_data <- sentiment_scores[-trainIndex, ]
+
+# Build multinomial logistic regression model
+model <- multinom(Company ~ value, data = train_data)
+
+# Make predictions on the test set
+predictions <- predict(model, newdata = test_data)
+
+
+# Evaluate the model
+confusion_matrix <- table(predictions, test_data$Company)
+
+print(confusion_matrix)
+
+
+# Perform cross-validation
+set.seed(123)
+cv <- train(Company ~ value, data = train_data, method = "multinom", trControl = trainControl(method = "cv", number = 5))
+print(cv)
+
+
+# Precision, Recall, and F1-score
+precision <- conf_matrix$byClass["Precision"]
+recall <- conf_matrix$byClass["Sensitivity"]
+f1_score <- 2 * (precision * recall) / (precision + recall)
+
+print(paste("Precision: ", precision))
+print(paste("Recall: ", recall))
+print(paste("F1-score: ", f1_score))
